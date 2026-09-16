@@ -67,6 +67,19 @@ st.markdown("""
 st.markdown("<h1>🛰️ ORBITAL TERRAIN SCANNER</h1>", unsafe_allow_html=True)
 st.markdown("<h3>AI-DRIVEN GEOLOGICAL EXPLORATION & RADIOMETRIC ANALYSIS</h3>", unsafe_allow_html=True)
 
+# --- NEW UPLOAD SYSTEM ---
+uploaded_file = st.sidebar.file_uploader("📡 Upload Custom Satellite Scan", type=["tif", "jpg", "png"])
+
+if uploaded_file is not None:
+    # If the user uploads a file, save it temporarily so the AI can read it
+    with open("temp_scan.tif", "wb") as f:
+        f.write(uploaded_file.getbuffer())
+    target_scan = "temp_scan.tif"
+else:
+    # If no file is uploaded, default to your built-in static demo
+    target_scan = "map.tif"
+# -------------------------
+
 # --- 2. LOAD MODEL ---
 @st.cache_resource
 def load_model():
@@ -103,7 +116,8 @@ with col2:
             ])
 
             try:
-                with rasterio.open('map.tif') as dataset:
+                # Updated to use the dynamic target_scan variable
+                with rasterio.open(target_scan) as dataset:
                     r, g, b = dataset.read(1), dataset.read(2), dataset.read(3)
                     map_image = np.dstack((r, g, b))
 
