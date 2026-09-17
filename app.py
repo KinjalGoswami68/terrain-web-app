@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 import time
+import pandas as pd # NEW: For reading the MRDS database
 
 # --- 1. CINEMATIC UI SETUP ---
 st.set_page_config(page_title="Geological AI", page_icon="🛰️", layout="wide")
@@ -65,18 +66,16 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("<h1>🛰️ ORBITAL TERRAIN SCANNER</h1>", unsafe_allow_html=True)
-st.markdown("<h3>AI-DRIVEN GEOLOGICAL EXPLORATION & RADIOMETRIC ANALYSIS</h3>", unsafe_allow_html=True)
+st.markdown("<h3>AI-DRIVEN GEOLOGICAL EXPLORATION & RADIOMETRIC ANALYSIS (V2)</h3>", unsafe_allow_html=True)
 
 # --- NEW UPLOAD SYSTEM ---
 uploaded_file = st.sidebar.file_uploader("📡 Upload Custom Satellite Scan", type=["tif", "jpg", "png"])
 
 if uploaded_file is not None:
-    # If the user uploads a file, save it temporarily so the AI can read it
     with open("temp_scan.tif", "wb") as f:
         f.write(uploaded_file.getbuffer())
     target_scan = "temp_scan.tif"
 else:
-    # If no file is uploaded, default to your built-in static demo
     target_scan = "map.tif"
 # -------------------------
 
@@ -116,7 +115,6 @@ with col2:
             ])
 
             try:
-                # Updated to use the dynamic target_scan variable
                 with rasterio.open(target_scan) as dataset:
                     r, g, b = dataset.read(1), dataset.read(2), dataset.read(3)
                     map_image = np.dstack((r, g, b))
@@ -139,7 +137,6 @@ with col2:
                             _, predicted = torch.max(outputs.data, 1)
                             results[y, x] = predicted.item()
                 
-                # Save to session state so we don't have to rescan
                 st.session_state.map_image = map_image
                 st.session_state.results = results
                 st.session_state.scan_complete = True
@@ -151,34 +148,27 @@ with col2:
 if st.session_state.scan_complete:
     st.divider()
     
-    # THE ANOMALY FILTER TOGGLE
     st.markdown("<h4 style='color: #50C878; text-align: center; font-family: Orbitron;'>TARGETING SYSTEMS</h4>", unsafe_allow_html=True)
     col_t1, col_t2, col_t3 = st.columns([1, 1.5, 1])
     with col_t2:
-        filter_enabled = st.toggle("🎯 ISOLATE EXPOSED GROUND (HIDE VEGETATION & WATER)")
+        filter_enabled = st.toggle("🎯 ISOLATE EXPOSED GROUND (HIDE VEGETATION)")
+        # NEW V2 FEATURE: Radiometric Toggle
+        radiometric_enabled = st.toggle("☢️ OVERLAY RADIOMETRIC MRDS DATA")
 
-    # Apply masking logic if toggle is flipped
     display_map = st.session_state.map_image.copy()
     display_results = st.session_state.results.copy()
     
     if filter_enabled:
-        # Classes to hide: 0(Crop), 1(Forest), 5(Pasture), 6(PermCrop), 8(River), 9(SeaLake)
-        # We are looking for exposed land, highways, industrial areas, etc.
         hide_classes = [0, 1, 5, 6, 8, 9] 
         mask = np.isin(display_results, hide_classes)
-        
-        # Black out those areas on the AI classification map (-1 sets it below color map limits)
         display_results[mask] = -1 
         
-        # Dim the raw map where there is vegetation/water to highlight exposed ground
-        # Because grid is 64x64 patches, we expand the mask to match the raw image size
         for y in range(display_results.shape[0]):
             for x in range(display_results.shape[1]):
                 if display_results[y, x] == -1:
                     y_start, x_start = y * 64, x * 64
                     display_map[y_start:y_start+64, x_start:x_start+64] = display_map[y_start:y_start+64, x_start:x_start+64] // 4
 
-    # Graph Rendering
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
     fig.patch.set_facecolor('none')
     
@@ -188,13 +178,35 @@ if st.session_state.scan_complete:
     ax1.axis('off')
 
     cmap = plt.get_cmap('magma') 
-    # Set background color for masked (-1) areas to black
     cmap.set_under('black') 
     
     im = ax2.imshow(display_results, cmap=cmap, vmin=0, vmax=9)
     title2 = "EXPOSED GROUND ISOLATED" if filter_enabled else "AI CLASSIFICATION MATRIX"
     ax2.set_title(title2, color='#50C878', fontname='Courier New', fontsize=14, pad=15)
     ax2.axis('off')
+
+    # --- NEW V2 FEATURE: Map MRDS Database Coordinates ---
+    if radiometric_enabled:
+        try:
+            mrds_df = pd.read_csv("mrds_data.csv")
+            
+            # Synthetic bounding box to map GPS to image pixels
+            min_lon, max_lon = -118.135, -118.085
+            max_lat, min_lat = 34.145, 34.105
+            H, W = display_map.shape[0], display_map.shape[1]
+            
+            # Translate Lat/Lon to X/Y
+            x_coords = (mrds_df['longitude'] - min_lon) / (max_lon - min_lon) * W
+            y_coords = (max_lat - mrds_df['latitude']) / (max_lat - min_lat) * H
+            
+            # Draw targeting reticles on the map
+            ax1.scatter(x_coords, y_coords, c='cyan', marker='+', s=200, linewidths=2, label='MRDS Anomaly')
+            ax2.scatter(x_coords, y_coords, c='cyan', marker='+', s=200, linewidths=2, label='MRDS Anomaly')
+            
+            # Add a legend
+            ax1.legend(loc='lower right', facecolor='black', labelcolor='cyan')
+        except Exception as e:
+            st.error(f"Failed to connect to MRDS Database: {e}")
 
     cbar = fig.colorbar(im, ax=ax2, ticks=range(10), fraction=0.046, pad=0.04)
     cbar.ax.set_yticklabels(classes, fontname='Courier New', fontsize=10)
