@@ -153,7 +153,7 @@ if st.session_state.scan_complete:
     with col_t2:
         filter_enabled = st.toggle("🎯 ISOLATE EXPOSED GROUND (HIDE VEGETATION)")
         # NEW V2 FEATURE: Radiometric Toggle
-        radiometric_enabled = st.toggle("☢️ OVERLAY RADIOMETRIC MRDS DATA")
+        radiometric_enabled = st.toggle("☢️ OVERLAY AI RADIOMETRIC PREDICTIONS")
 
     display_map = st.session_state.map_image.copy()
     display_results = st.session_state.results.copy()
@@ -185,10 +185,11 @@ if st.session_state.scan_complete:
     ax2.set_title(title2, color='#50C878', fontname='Courier New', fontsize=14, pad=15)
     ax2.axis('off')
 
-    # --- NEW V2 FEATURE: Map MRDS Database Coordinates ---
+    # --- NEW V2 FEATURE: Map AI Predicted Coordinates ---
     if radiometric_enabled:
         try:
-            mrds_df = pd.read_csv("mrds_data.csv")
+            # STEP 5 INTEGRATION: Reading live AI predictions instead of static markers
+            mrds_df = pd.read_csv("predicted_anomalies.csv")
             
             # Synthetic bounding box to map GPS to image pixels
             min_lon, max_lon = -118.135, -118.085
@@ -200,13 +201,13 @@ if st.session_state.scan_complete:
             y_coords = (max_lat - mrds_df['latitude']) / (max_lat - min_lat) * H
             
             # Draw targeting reticles on the map
-            ax1.scatter(x_coords, y_coords, c='cyan', marker='+', s=200, linewidths=2, label='MRDS Anomaly')
-            ax2.scatter(x_coords, y_coords, c='cyan', marker='+', s=200, linewidths=2, label='MRDS Anomaly')
+            ax1.scatter(x_coords, y_coords, c='red', marker='+', s=200, linewidths=2, label='AI Predicted Anomaly')
+            ax2.scatter(x_coords, y_coords, c='red', marker='+', s=200, linewidths=2, label='AI Predicted Anomaly')
             
             # Add a legend
-            ax1.legend(loc='lower right', facecolor='black', labelcolor='cyan')
+            ax1.legend(loc='lower right', facecolor='black', labelcolor='red')
         except Exception as e:
-            st.error(f"Failed to connect to MRDS Database: {e}")
+            st.error(f"Failed to load AI Predictions: {e}")
 
     cbar = fig.colorbar(im, ax=ax2, ticks=range(10), fraction=0.046, pad=0.04)
     cbar.ax.set_yticklabels(classes, fontname='Courier New', fontsize=10)
