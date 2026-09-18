@@ -1,0 +1,8 @@
+site_id,latitude,longitude,primary_commodity,anomaly_score
+USGS-101,34.125,-118.112,Uranium,0.92
+USGS-102,34.130,-118.105,Copper,0.75
+USGS-103,34.115,-118.120,Rare Earth Elements,0.88
+USGS-104,34.122,-118.115,Gold,0.61
+USGS-105,34.140,-118.090,Uranium,0.95
+USGS-106,34.135,-118.100,Copper,0.54
+USGS-107,34.110,-118.130,Lithium,0.82
